@@ -1,4 +1,5 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import './App.css';
 
 const AMRWarehouseMap = () => {
   const canvasRef = useRef(null);
@@ -131,7 +132,7 @@ const AMRWarehouseMap = () => {
   };
 
   // Parse nodes từ nodeArr
-  const parseNodes = (nodeArr, nodeKeys) => {
+  const parseNodes = useCallback((nodeArr, nodeKeys) => {
     return nodeArr.map(nodeData => {
       const node = {};
       nodeKeys.forEach((key, index) => {
@@ -139,10 +140,10 @@ const AMRWarehouseMap = () => {
       });
       return node;
     });
-  };
+  }, []);
 
   // Parse lines từ lineArr  
-  const parseLines = (lineArr, lineKeys) => {
+  const parseLines = useCallback((lineArr, lineKeys) => {
     return lineArr.map(lineData => {
       const line = {};
       lineKeys.forEach((key, index) => {
@@ -150,57 +151,9 @@ const AMRWarehouseMap = () => {
       });
       return line;
     });
-  };
-
-  // Simulate robot movement
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRobotPosition(prev => ({
-        x: prev.x + (Math.random() - 0.5) * 1000,
-        y: prev.y + (Math.random() - 0.5) * 1000,
-        angle: prev.angle + (Math.random() - 0.5) * 0.1
-      }));
-    }, 2000);
-
-    return () => clearInterval(interval);
   }, []);
 
-  const drawMap = (ctx, data, security) => {
-    if (!data) return;
-
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-    
-    // Apply transformations
-    ctx.save();
-    ctx.translate(offset.x + ctx.canvas.width/2, offset.y + ctx.canvas.height/2);
-    ctx.scale(scale, scale);
-    ctx.translate(-data.width/2, -data.height/2);
-
-    // Draw grid
-    drawGrid(ctx, data);
-    
-    // Draw paths first (background)
-    if (showPaths) {
-      drawPaths(ctx, data);
-    }
-    
-    // Draw nodes
-    if (showNodes) {
-      drawNodes(ctx, data);
-    }
-    
-    // Draw charge stations
-    if (showChargeStations) {
-      drawChargeStations(ctx, data);
-    }
-    
-    // Draw robot
-    drawRobot(ctx, robotPosition, security);
-    
-    ctx.restore();
-  };
-
-  const drawGrid = (ctx, data) => {
+  const drawGrid = useCallback((ctx, data) => {
     const gridSize = 10000; // Grid every 10000 units
     ctx.strokeStyle = '#f0f0f0';
     ctx.lineWidth = 100;
@@ -220,9 +173,9 @@ const AMRWarehouseMap = () => {
       ctx.lineTo(data.width, y);
       ctx.stroke();
     }
-  };
+  }, []);
 
-  const drawPaths = (ctx, data) => {
+  const drawPaths = useCallback((ctx, data) => {
     const lines = parseLines(data.lineArr, data.lineKeys);
     
     ctx.strokeStyle = '#74b9ff';
@@ -242,9 +195,9 @@ const AMRWarehouseMap = () => {
     });
     
     ctx.setLineDash([]);
-  };
+  }, [parseLines]);
 
-  const drawNodes = (ctx, data) => {
+  const drawNodes = useCallback((ctx, data) => {
     const nodes = parseNodes(data.nodeArr, data.nodeKeys);
     
     nodes.forEach(node => {
@@ -274,9 +227,9 @@ const AMRWarehouseMap = () => {
       ctx.textAlign = 'center';
       ctx.fillText(node.name.slice(-3), node.x, node.y - 1500);
     });
-  };
+  }, [parseNodes]);
 
-  const drawChargeStations = (ctx, data) => {
+  const drawChargeStations = useCallback((ctx, data) => {
     if (!data.chargeCoor) return;
     
     const nodes = parseNodes(data.nodeArr, data.nodeKeys);
@@ -301,9 +254,9 @@ const AMRWarehouseMap = () => {
         ctx.fillText('⚡', node.x, node.y + 600);
       }
     });
-  };
+  }, [parseNodes]);
 
-  const drawRobot = (ctx, robot, security) => {
+  const drawRobot = useCallback((ctx, robot, security) => {
     ctx.save();
     ctx.translate(robot.x, robot.y);
     ctx.rotate(robot.angle);
@@ -347,7 +300,42 @@ const AMRWarehouseMap = () => {
       ctx.fillStyle = '#e17055';
       ctx.fillText(currentConfig.name, robot.x, robot.y + 4000);
     }
-  };
+  }, [selectedAvoidanceMode]);
+
+  const drawMap = useCallback((ctx, data, security) => {
+    if (!data) return;
+
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    
+    // Apply transformations
+    ctx.save();
+    ctx.translate(offset.x + ctx.canvas.width/2, offset.y + ctx.canvas.height/2);
+    ctx.scale(scale, scale);
+    ctx.translate(-data.width/2, -data.height/2);
+
+    // Draw grid
+    drawGrid(ctx, data);
+    
+    // Draw paths first (background)
+    if (showPaths) {
+      drawPaths(ctx, data);
+    }
+    
+    // Draw nodes
+    if (showNodes) {
+      drawNodes(ctx, data);
+    }
+    
+    // Draw charge stations
+    if (showChargeStations) {
+      drawChargeStations(ctx, data);
+    }
+    
+    // Draw robot
+    drawRobot(ctx, robotPosition, security);
+    
+    ctx.restore();
+  }, [drawGrid, drawPaths, drawNodes, drawChargeStations, drawRobot, offset, scale, showNodes, showPaths, showChargeStations, robotPosition]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -355,7 +343,7 @@ const AMRWarehouseMap = () => {
     
     const ctx = canvas.getContext('2d');
     drawMap(ctx, mapData, securityConfig);
-  }, [mapData, securityConfig, robotPosition, scale, offset, showNodes, showPaths, showChargeStations, selectedAvoidanceMode]);
+  }, [mapData, securityConfig, drawMap]);
 
   const handleZoom = (direction) => {
     setScale(prev => {
@@ -370,216 +358,188 @@ const AMRWarehouseMap = () => {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 bg-gray-50 rounded-lg shadow-lg">
-      <div className="mb-4 flex justify-between items-center flex-wrap gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">AMR Warehouse Navigation Map</h2>
-        <div className="flex gap-2 flex-wrap">
-          <button 
-            onClick={() => handleZoom(1)}
-            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Zoom In
-          </button>
-          <button 
-            onClick={() => handleZoom(-1)}
-            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-          >
-            Zoom Out
-          </button>
-          <button 
-            onClick={handleReset}
-            className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
-          >
-            Reset
-          </button>
-        </div>
-      </div>
-
-      {/* File Import Section */}
-      <div className="mb-4 p-4 bg-white rounded-lg border-2 border-dashed border-gray-300">
-        <h3 className="text-lg font-semibold mb-3 text-gray-700">Import Map Files</h3>
-        
-        {loading && (
-          <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded flex items-center gap-2">
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-            <span className="text-blue-700">Loading file...</span>
-          </div>
-        )}
-        
-        {error && (
-          <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded">
-            <span className="text-red-700">{error}</span>
-          </div>
-        )}
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Map File Import */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Map Data (compress.json)
-            </label>
-            <input
-              ref={mapFileInputRef}
-              type="file"
-              accept=".json"
-              onChange={handleMapFileChange}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-            {mapFileName && (
-              <p className="text-xs text-green-600">✓ {mapFileName}</p>
-            )}
-          </div>
-
-          {/* Security File Import */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Security Config (security.json)
-            </label>
-            <input
-              ref={securityFileInputRef}
-              type="file"
-              accept=".json"
-              onChange={handleSecurityFileChange}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-            />
-            {securityFileName && (
-              <p className="text-xs text-green-600">✓ {securityFileName}</p>
-            )}
-          </div>
-
-          {/* Reset Button */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              Actions
-            </label>
-            <button
-              onClick={resetToSampleData}
-              className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm"
+    <>
+      {/* Logo fixed at top right */}
+      <img src="/icon/thado.png" alt="THADO ROBOT Logo" className="amr-logo" />
+      <div className="w-full max-w-7xl mx-auto bg-gray-50 rounded-lg shadow-lg" style={{position: 'relative'}}>
+        {/* Header section */}
+        <div className="header-title">AMR Map Viewer</div>
+        <div className="header-desc">Realtime visualization of AMR position and warehouse map</div>
+        {/* Controls */}
+        <div className="mb-4 flex flex-wrap justify-between items-center gap-4">
+          <div className="flex gap-2 flex-wrap">
+            <button 
+              onClick={() => handleZoom(1)}
+              className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
             >
-              Reset to Sample Data
+              Zoom In
+            </button>
+            <button 
+              onClick={() => handleZoom(-1)}
+              className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              Zoom Out
+            </button>
+            <button 
+              onClick={handleReset}
+              className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Reset
             </button>
           </div>
+          {/* <div className="flex items-center gap-2">
+            <label htmlFor="avoidanceMode" className="text-sm">Avoidance Mode:</label>
+            <select
+              id="avoidanceMode"
+              value={selectedAvoidanceMode}
+              onChange={(e) => setSelectedAvoidanceMode(parseInt(e.target.value))}
+              className="text-sm border rounded px-2 py-1"
+            >
+              {securityConfig?.AvoidSceneSet?.map(scene => (
+                <option key={scene.id} value={scene.id}>{scene.name}</option>
+              ))}
+            </select>
+          </div> */}
         </div>
-
-        {/* File Format Help */}
-        <div className="mt-3 p-3 bg-gray-50 rounded text-xs text-gray-600">
-          <p><strong>Expected file formats:</strong></p>
-          <p><strong>Map file:</strong> JSON with nodeKeys, lineKeys, nodeArr, lineArr fields</p>
-          <p><strong>Security file:</strong> JSON with AvoidSceneSet field containing avoidance configurations</p>
+        {/* Main content grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Map area */}
+          <div className="md:col-span-2">
+            <div className="map-area-label">MAP AREA</div>
+            <div className="map-area-box">
+              <canvas
+                ref={canvasRef}
+                width={1000}
+                height={600}
+                className="block w-full h-auto bg-white cursor-move"
+                onMouseDown={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const startX = e.clientX - rect.left - offset.x;
+                  const startY = e.clientY - rect.top - offset.y;
+                  const handleMouseMove = (e) => {
+                    setOffset({
+                      x: e.clientX - rect.left - startX,
+                      y: e.clientY - rect.top - startY
+                    });
+                  };
+                  const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                  };
+                  document.addEventListener('mousemove', handleMouseMove);
+                  document.addEventListener('mouseup', handleMouseUp);
+                }}
+              />
+            </div>
+            {/* Legend */}
+            <div className="legend">
+              <span><span className="legend-icon" style={{background:'#22c55e'}}></span> Regular Waypoint</span>
+              <span><span className="legend-icon" style={{background:'#ef4444'}}></span> Special Node</span>
+              <span><span className="legend-icon" style={{background:'#facc15'}}></span> Charge Station</span>
+              <span><span className="legend-icon" style={{background:'#3b82f6', borderRadius:'0.25em'}}></span> AMR Robot</span>
+              <span><span style={{fontSize:'1.2em'}}>⚡</span> Charging Symbol</span>
+              <span><span className="legend-path"></span> Path</span>
+            </div>
+          </div>
+          {/* Side info cards */}
+          <div className="flex flex-col gap-4">
+            <div className="status-card">
+              <h3 className="font-semibold mb-2">Robot Status</h3>
+              <p><strong>Position:</strong> ({Math.round(robotPosition.x/1000)}k, {Math.round(robotPosition.y/1000)}k)</p>
+              <p><strong>Orientation:</strong> {(robotPosition.angle * 180 / Math.PI).toFixed(1)}°</p>
+              <p><strong>Scale:</strong> {(scale * 1000).toFixed(2)}‰</p>
+            </div>
+            <div className="file-card">
+              <h3 className="font-semibold mb-2">Current Files</h3>
+              <p className="text-sm"><strong>Map:</strong> {mapFileName || 'No file loaded'}</p>
+              <p className="text-sm"><strong>Security:</strong> {securityFileName || 'No file loaded'}</p>
+              <p className="text-sm"><strong>Status:</strong> {loading ? 'Loading...' : 'Ready'}</p>
+            </div>
+            <div className="display-card">
+              <h3 className="font-semibold mb-2">Display Options</h3>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={showNodes} onChange={e => setShowNodes(e.target.checked)} className="rounded" /> Show Waypoints
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={showPaths} onChange={e => setShowPaths(e.target.checked)} className="rounded" /> Show Paths
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={showChargeStations} onChange={e => setShowChargeStations(e.target.checked)} className="rounded" /> Show Charge Stations
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* File Import Section */}
+        <div className="mt-8 p-4 bg-white rounded-lg border-2 border-dashed border-gray-300">
+          <h3 className="text-lg font-semibold mb-3 text-gray-700">Import Map Files</h3>
+          {loading && (
+            <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded flex items-center gap-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+              <span className="text-blue-700">Loading file...</span>
+            </div>
+          )}
+          {error && (
+            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded">
+              <span className="text-red-700">{error}</span>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Map File Import */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Map Data (compress.json)
+              </label>
+              <input
+                ref={mapFileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleMapFileChange}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {mapFileName && (
+                <p className="text-xs text-green-600">✓ {mapFileName}</p>
+              )}
+            </div>
+            {/* Security File Import */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Security Config (security.json)
+              </label>
+              <input
+                ref={securityFileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleSecurityFileChange}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+              />
+              {securityFileName && (
+                <p className="text-xs text-green-600">✓ {securityFileName}</p>
+              )}
+            </div>
+            {/* Reset Button */}
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Actions
+              </label>
+              <button
+                onClick={resetToSampleData}
+                className="w-full px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm"
+              >
+                Reset to Sample Data
+              </button>
+            </div>
+          </div>
+          {/* File Format Help */}
+          <div className="mt-3 p-3 bg-gray-50 rounded text-xs text-gray-600">
+            <p><strong>Expected file formats:</strong></p>
+            <p><strong>Map file:</strong> JSON with nodeKeys, lineKeys, nodeArr, lineArr fields</p>
+            <p><strong>Security file:</strong> JSON with AvoidSceneSet field containing avoidance configurations</p>
+          </div>
         </div>
       </div>
-
-      {/* Controls */}
-      <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="showNodes"
-            checked={showNodes}
-            onChange={(e) => setShowNodes(e.target.checked)}
-            className="rounded"
-          />
-          <label htmlFor="showNodes" className="text-sm">Show Waypoints</label>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="showPaths"
-            checked={showPaths}
-            onChange={(e) => setShowPaths(e.target.checked)}
-            className="rounded"
-          />
-          <label htmlFor="showPaths" className="text-sm">Show Paths</label>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="showChargeStations"
-            checked={showChargeStations}
-            onChange={(e) => setShowChargeStations(e.target.checked)}
-            className="rounded"
-          />
-          <label htmlFor="showChargeStations" className="text-sm">Show Charge Stations</label>
-        </div>
-        <div className="flex items-center gap-2">
-          <label htmlFor="avoidanceMode" className="text-sm">Avoidance Mode:</label>
-          <select
-            id="avoidanceMode"
-            value={selectedAvoidanceMode}
-            onChange={(e) => setSelectedAvoidanceMode(parseInt(e.target.value))}
-            className="text-sm border rounded px-2 py-1"
-          >
-            {securityConfig?.AvoidSceneSet?.map(scene => (
-              <option key={scene.id} value={scene.id}>{scene.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      
-      <div className="border-2 border-gray-300 rounded-lg overflow-hidden">
-        <canvas
-          ref={canvasRef}
-          width={1000}
-          height={600}
-          className="block w-full h-auto bg-white cursor-move"
-          onMouseDown={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const startX = e.clientX - rect.left - offset.x;
-            const startY = e.clientY - rect.top - offset.y;
-            
-            const handleMouseMove = (e) => {
-              setOffset({
-                x: e.clientX - rect.left - startX,
-                y: e.clientY - rect.top - startY
-              });
-            };
-            
-            const handleMouseUp = () => {
-              document.removeEventListener('mousemove', handleMouseMove);
-              document.removeEventListener('mouseup', handleMouseUp);
-            };
-            
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-          }}
-        />
-      </div>
-      
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500 rounded-full"></div>
-          <span>Regular Waypoint</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-red-500 rounded-full"></div>
-          <span>Special Node</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-yellow-400 rounded-full"></div>
-          <span>Charge Station</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-500 rounded"></div>
-          <span>AMR Robot</span>
-        </div>
-      </div>
-      
-      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-3 bg-white rounded border">
-          <h3 className="font-semibold mb-2">Robot Status</h3>
-          <p>Position: ({Math.round(robotPosition.x/1000)}k, {Math.round(robotPosition.y/1000)}k)</p>
-          <p>Orientation: {(robotPosition.angle * 180 / Math.PI).toFixed(1)}°</p>
-          <p>Scale: {(scale * 1000).toFixed(2)}‰</p>
-        </div>
-        
-        <div className="p-3 bg-white rounded border">
-          <h3 className="font-semibold mb-2">Current Files</h3>
-          <p className="text-sm"><strong>Map:</strong> {mapFileName || 'No file loaded'}</p>
-          <p className="text-sm"><strong>Security:</strong> {securityFileName || 'No file loaded'}</p>
-          <p className="text-sm"><strong>Status:</strong> {loading ? 'Loading...' : 'Ready'}</p>
-        </div>
-      </div>
-    </div>
+    </>
   );
 };
 
